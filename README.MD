@@ -1,0 +1,1 @@
+A script extracts and processes data from a specific csv file with data from a car listing website. It enters the result into the standard output window.
