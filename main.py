@@ -8,6 +8,7 @@ import argparse
 import csv
 from pathlib import Path
 import pprint
+from tabulate import tabulate
 
 BRANDS_TWO_WORDS = {
     "Lada": "Lada (ВАЗ)",
@@ -35,14 +36,16 @@ def get_args() -> argparse.Namespace:
                                  a specific csv file with data from a car listing website"
     )
 
-    parser.add_argument("--brand", type=str, default=None, help="Vehicle manufacturer")
+    parser.add_argument(
+        "--brand", type=str, default="Mazda", help="Vehicle manufacturer"
+    )
     parser.add_argument(
         "--year_from", type=int, default=0, help="Build date vehicle from"
     )
     parser.add_argument(
-        "--year_to", type=int, default=2199, help="Build date vehicle to"
+        "--year_to", type=int, default=2099, help="Build date vehicle to"
     )
-    parser.add_argument("--model", type=str, default=None, help="Model vehicle")
+    parser.add_argument("--model", type=str, default="CX-5 III", help="Model vehicle")
     parser.add_argument(
         "--price_from", type=int, default=0, help="Minimal price in USD"
     )
@@ -53,10 +56,10 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--mileage", type=int, default=10**6, help="Maximal mileage")
     parser.add_argument("--body", type=str, help="Type of body vehicle")
     parser.add_argument(
-        "--engine_from", type=int, help="Minimal volume of engine in cm^3"
+        "--engine_from", type=int, default=0, help="Minimal volume of engine in cm^3"
     )
     parser.add_argument(
-        "--engine_to", type=int, help="Maximal volume of engine in cm^3"
+        "--engine_to", type=int, default=10000, help="Maximal volume of engine in cm^3"
     )
     parser.add_argument("--fuel", type=str, help="Type of fuel")
     parser.add_argument("--exchange", type=str, help="Ready to exchange, yes/no")
@@ -68,7 +71,7 @@ def get_args() -> argparse.Namespace:
                     independent keywords separated by commas",
     )
     parser.add_argument(
-        "--max_records", type=int, default=50, help="Maximal number of records output"
+        "--max_records", type=int, default=20, help="Maximal number of records output"
     )
 
     args = parser.parse_args()
@@ -81,7 +84,7 @@ def extract_brand(input_string: str) -> str:
     brand_from_title = input_string.split(" ", maxsplit=2)[1]
     if brand_from_title in BRANDS_TWO_WORDS:
         brand_from_title = BRANDS_TWO_WORDS[brand_from_title]
-    return brand_from_title
+    return brand_from_title.strip()
 
 
 def extract_model(input_string: str, brand: str) -> str:
@@ -116,10 +119,19 @@ def extract_transmission(input_string: str) -> str:
 def extract_engine(input_string: str) -> str:
     """Extract field 'engine' from 'description'."""
     engine_from_field = input_string.split("|")[0]
-    engine_from_field = engine_from_field.split(",", maxsplit=3)[2]
-    engine_from_field = "".join(ch for ch in input_string if ch.isdigit())
-    # 1.6 л -> 16 -> 1600
-    engine_from_field = 100 * int(engine_from_field)
+    engine_from_field = engine_from_field.split(",", maxsplit=3)[2].strip()
+    if engine_from_field != "электро":
+        engine_from_field = "".join(ch for ch in engine_from_field if ch.isdigit())
+
+        try:
+            # 1.6 л -> 16 -> 1600
+            engine_from_field = 100 * int(engine_from_field)
+        except:
+            # если нет поля с объемом двигателя, то 0
+            engine_from_field = 0
+    else:
+        # если электромобиль, то объем двигателя 0
+        engine_from_field = 0
     return engine_from_field
 
 
@@ -154,6 +166,7 @@ def extract_exchange(input_string: str) -> str:
 
 
 def is_valid_brand(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Check 'brand'"""
     if param_filters.brand is None:
         return True
     if input_data["brand"] == param_filters.brand:
@@ -162,7 +175,7 @@ def is_valid_brand(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_model(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    if param_filters.brand is None:
+    if param_filters.model is None:
         return True
     if input_data["model"] == param_filters.model:
         return True
@@ -188,7 +201,7 @@ def is_valid_year(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_transmission(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    if param_filters.brand is None:
+    if param_filters.transmission is None:
         return True
     if input_data["transmission"] == param_filters.transmission:
         return True
@@ -196,8 +209,6 @@ def is_valid_transmission(input_data: dict, param_filters: argparse.Namespace) -
 
 
 def is_valid_engine(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    if param_filters.brand is None:
-        return True
     if input_data["engine"] >= param_filters.engine_from:
         if input_data["engine"] <= param_filters.engine_to:
             return True
@@ -207,7 +218,7 @@ def is_valid_engine(input_data: dict, param_filters: argparse.Namespace) -> bool
 
 
 def is_valid_fuel(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    if param_filters.brand is None:
+    if param_filters.fuel is None:
         return True
     if input_data["fuel"] == param_filters.fuel:
         return True
@@ -221,7 +232,7 @@ def is_valid_mileage(input_data: dict, param_filters: argparse.Namespace) -> boo
 
 
 def is_valid_body(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    if param_filters.brand is None:
+    if param_filters.body is None:
         return True
     if input_data["body"] == param_filters.body:
         return True
@@ -229,7 +240,7 @@ def is_valid_body(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_exchange(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    if param_filters.brand is None:
+    if param_filters.exchange is None:
         return True
     if input_data["exchange"] == param_filters.exchange:
         return True
@@ -237,7 +248,12 @@ def is_valid_exchange(input_data: dict, param_filters: argparse.Namespace) -> bo
 
 
 def is_valid_keywords(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    return True
+    # Input data is a string of comma-separated words
+    keywords = param_filters.keywords.split(",")
+    for word in keywords:
+        if word.strip() in input_data["card"]:
+            return True
+    return False
 
 
 FILTERS_PIPELINE = (
@@ -265,13 +281,10 @@ def load_data(file_path: Path):
 def extract_data(reader) -> None:
     """Process data from CSV file"""
     extracted_data = []
-    for row in reader:  # Transform
+    for row in reader:
         brand = extract_brand(row["title"])
         model = extract_model(row["title"], brand)
         price = extract_price(row["price_secondary"])
-        # print(f"Title: {row['title']}, price: {row['price_secondary']}")
-        # print(f" -> {brand} - {model} - {price}")
-
         year = extract_year(row["description"])
         transmission = extract_transmission(row["description"])
         engine = extract_engine(row["description"])
@@ -279,8 +292,10 @@ def extract_data(reader) -> None:
         mileage = extract_mileage(row["description"])
         body = extract_body(row["description"])
         exchange = extract_exchange(row["exchange"])
-        # print(row["description"])
-        # print(f" -> {year} - {transmission} - {engine} - {fuel} - {mileage} - {body}")
+
+        # Save serialized card for future search by keywords
+        card = ",".join(row.values())
+
         extracted_data.append(
             {
                 "brand": brand,
@@ -293,7 +308,7 @@ def extract_data(reader) -> None:
                 "mileage": mileage,
                 "body": body,
                 "exchange": exchange,
-                "card": row,
+                "card": card,
             }
         )
     return extracted_data
@@ -309,12 +324,16 @@ def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
             all_filter_valid = False
             break
         if all_filter_valid:
+            card.pop("card")
             filtered_data.append(card)
     return filtered_data
 
 
 def show_data(input_data: list, max_records):
-    pprint.pprint(input_data[:max_records])
+    # 1-й по увеличению цены, 2-й - по году выпуска - сначала более новые, 3-й - от меньшего километража к большему
+    input_data.sort(key=lambda row: (row["price"], -row["year"], row["mileage"]))
+    # pprint.pprint(input_data[:max_records])
+    print(tabulate(input_data[:max_records], headers="keys"))
 
 
 if __name__ == "__main__":
