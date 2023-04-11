@@ -6,8 +6,10 @@ It enters the result into the standard output window.
 
 import argparse
 import csv
+import io
+from datetime import datetime
 from pathlib import Path
-import pprint
+
 from tabulate import tabulate
 
 BRANDS_TWO_WORDS = {
@@ -22,9 +24,9 @@ BRANDS_TWO_WORDS = {
 
 EXCHANGE_MAP = {
     "Возможен обмен": "yes",
-    "Обмен не интересует": "no",
     "Возможен обмен с моей доплатой": "yes",
     "Возможен обмен с вашей доплатой": "yes",
+    "Обмен не интересует": "no",
 }
 
 
@@ -37,7 +39,7 @@ def get_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--brand", type=str, default="Mazda", help="Vehicle manufacturer"
+        "--brand", type=str, default=None, help="Vehicle manufacturer"
     )
     parser.add_argument(
         "--year_from", type=int, default=0, help="Build date vehicle from"
@@ -45,7 +47,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--year_to", type=int, default=2099, help="Build date vehicle to"
     )
-    parser.add_argument("--model", type=str, default="CX-5 III", help="Model vehicle")
+    parser.add_argument("--model", type=str, default=None, help="Model vehicle")
     parser.add_argument(
         "--price_from", type=int, default=0, help="Minimal price in USD"
     )
@@ -122,12 +124,11 @@ def extract_engine(input_string: str) -> str:
     engine_from_field = engine_from_field.split(",", maxsplit=3)[2].strip()
     if engine_from_field != "электро":
         engine_from_field = "".join(ch for ch in engine_from_field if ch.isdigit())
-
         try:
             # 1.6 л -> 16 -> 1600
             engine_from_field = 100 * int(engine_from_field)
         except:
-            # если нет поля с объемом двигателя, то 0
+            # если нет поля цифрами (объемом двигателя), то 0
             engine_from_field = 0
     else:
         # если электромобиль, то объем двигателя 0
@@ -137,10 +138,16 @@ def extract_engine(input_string: str) -> str:
 
 def extract_fuel(input_string: str) -> str:
     """Extract field 'fuel' from 'description'."""
-    fuel_from_field = input_string.split("|")[0]
-    fuel_from_field = fuel_from_field.split(",", maxsplit=4)[3]
-    fuel_from_field = fuel_from_field.strip()
-    return fuel_from_field
+    # получаем поле что бы понять карточка авто с ДВС и электро
+    description = input_string.split("|")[0]
+    engine_from_field = description.split(",", maxsplit=3)[2].strip()
+    if engine_from_field == "электро":
+        return "электро"        
+    else:
+        fuel_from_field = description.split(",", maxsplit=4)[3]
+        fuel_from_field = fuel_from_field.strip()
+        return fuel_from_field
+        
 
 
 def extract_mileage(input_string: str) -> int:
@@ -256,30 +263,17 @@ def is_valid_keywords(input_data: dict, param_filters: argparse.Namespace) -> bo
     return False
 
 
-FILTERS_PIPELINE = (
-    is_valid_brand,
-    is_valid_model,
-    is_valid_price,
-    is_valid_year,
-    is_valid_transmission,
-    is_valid_engine,
-    is_valid_fuel,
-    is_valid_mileage,
-    is_valid_body,
-    is_valid_exchange,
-    is_valid_keywords,
-)
-
-
 def load_data(file_path: Path):
-    """Load data from csv file"""
-    csv_file = open(file_path, encoding="utf-8")
-    csv_reader = csv.DictReader(csv_file, delimiter=",", quotechar='"')
-    return csv_reader
+    """Load data from file"""
+    file = open(file_path, encoding="utf-8")
+    input_data = file.read()
+    input_data = io.StringIO(input_data)
+    return input_data
 
 
-def extract_data(reader) -> None:
-    """Process data from CSV file"""
+def extract_data(input_data) -> None:
+    """Process data from CSV data"""
+    reader = csv.DictReader(input_data, delimiter=",", quotechar='"')
     extracted_data = []
     for row in reader:
         brand = extract_brand(row["title"])
@@ -313,6 +307,20 @@ def extract_data(reader) -> None:
         )
     return extracted_data
 
+FILTERS_PIPELINE = (
+    is_valid_brand,
+    is_valid_model,
+    is_valid_price,
+    is_valid_year,
+    is_valid_transmission,
+    is_valid_engine,
+    is_valid_fuel,
+    is_valid_mileage,
+    is_valid_body,
+    is_valid_exchange,
+    is_valid_keywords,
+)
+
 
 def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
     filtered_data = []
@@ -329,16 +337,40 @@ def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
     return filtered_data
 
 
-def show_data(input_data: list, max_records):
-    # 1-й по увеличению цены, 2-й - по году выпуска - сначала более новые, 3-й - от меньшего километража к большему
+def order_data(input_data:list):
     input_data.sort(key=lambda row: (row["price"], -row["year"], row["mileage"]))
-    # pprint.pprint(input_data[:max_records])
-    print(tabulate(input_data[:max_records], headers="keys"))
 
+
+def show_data(input_data: list, max_records):
+    """Show date in table format"""
+    print(tabulate(input_data[:max_records], headers="keys"))
+    
 
 if __name__ == "__main__":
+    start_time = datetime.now()
+    
     args_app = get_args()
-    reader = load_data("data/cars-av-by_card_v2.csv")
-    extracted_data = extract_data(reader)
+    ts_args_app = datetime.now()
+    
+    input_data = load_data("data/cars-av-by_card_v2.csv")
+    ts_load = datetime.now()
+    
+    extracted_data = extract_data(input_data)
+    ts_extract = datetime.now()
+    
     filtered_data = filter_data(extracted_data, args_app)
+    ts_filter = datetime.now()
+    
+    order_data(filtered_data)
+    ts_order = datetime.now()
+    
     show_data(filtered_data, args_app.max_records)
+    ts_show = datetime.now()
+
+    print(f"Parse args: {ts_args_app - start_time}")
+    print(f"Load: {ts_load - ts_args_app}")
+    print(f"Extract: {ts_extract - ts_load}")
+    print(f"Filter: {ts_filter - ts_extract}")
+    print(f"Order: {ts_order - ts_extract}")
+    print(f"Show: {ts_show - ts_order}")
+    print(f"Total: {ts_show - start_time}")
