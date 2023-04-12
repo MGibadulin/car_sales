@@ -114,8 +114,7 @@ def extract_transmission(input_string: str) -> str:
     """Extract field 'transmission' from 'description'."""
     transmission_from_field = input_string.split("|")[0]
     transmission_from_field = transmission_from_field.split(",", maxsplit=2)[1]
-    transmission_from_field = transmission_from_field.strip()
-    return transmission_from_field
+    return transmission_from_field.strip()
 
 
 def extract_engine(input_string: str) -> str:
@@ -145,8 +144,7 @@ def extract_fuel(input_string: str) -> str:
         return "электро"        
     else:
         fuel_from_field = description.split(",", maxsplit=4)[3]
-        fuel_from_field = fuel_from_field.strip()
-        return fuel_from_field
+        return fuel_from_field.strip()
         
 
 
@@ -162,8 +160,7 @@ def extract_body(input_string: str) -> str:
     """Extract field 'body' from 'description'."""
     body_from_field = input_string.split("|")[1]
     body_from_field = body_from_field.split(",", maxsplit=1)[0]
-    body_from_field = body_from_field.strip()
-    return body_from_field
+    return body_from_field.strip()
 
 
 def extract_exchange(input_string: str) -> str:
@@ -287,6 +284,9 @@ def extract_data(input_data) -> None:
         body = extract_body(row["description"])
         exchange = extract_exchange(row["exchange"])
 
+        # Deleting fields that do not need to be searched
+        row.pop("card_id"),
+        row.pop("scrap_date")
         # Save serialized card for future search by keywords
         card = ",".join(row.values())
 
@@ -324,16 +324,16 @@ FILTERS_PIPELINE = (
 
 def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
     filtered_data = []
-    for card in input_data:
+    for row in input_data:
         all_filter_valid = True
         for check_filter in FILTERS_PIPELINE:
-            if check_filter(card, param_filters):
+            if check_filter(row, param_filters):
                 continue
             all_filter_valid = False
             break
         if all_filter_valid:
-            card.pop("card")
-            filtered_data.append(card)
+            row.pop("card")
+            filtered_data.append(row)
     return filtered_data
 
 
@@ -345,8 +345,7 @@ def show_data(input_data: list, max_records):
     """Show date in table format"""
     print(tabulate(input_data[:max_records], headers="keys"))
     
-
-if __name__ == "__main__":
+def main():
     start_time = datetime.now()
     
     args_app = get_args()
@@ -374,3 +373,8 @@ if __name__ == "__main__":
     print(f"Order: {ts_order - ts_extract}")
     print(f"Show: {ts_show - ts_order}")
     print(f"Total: {ts_show - start_time}")
+    
+    
+if __name__ == "__main__":
+    main()
+    
