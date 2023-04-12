@@ -358,6 +358,7 @@ def load_out_data(input_data: list, max_records):
     print(tabulate(input_data[:max_records], headers="keys"))
     
 def main():
+    """Main function"""
     start_time = datetime.now()
     
     args_app = get_args()
