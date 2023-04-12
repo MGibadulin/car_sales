@@ -170,7 +170,7 @@ def extract_exchange(input_string: str) -> str:
 
 
 def is_valid_brand(input_data: dict, param_filters: argparse.Namespace) -> bool:
-    """Check 'brand'"""
+    """Checking whether the field 'brand' equal the required value"""
     if param_filters.brand is None:
         return True
     if input_data["brand"] == param_filters.brand:
@@ -179,6 +179,7 @@ def is_valid_brand(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_model(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether the field 'model' equal the required value"""
     if param_filters.model is None:
         return True
     if input_data["model"] == param_filters.model:
@@ -187,6 +188,7 @@ def is_valid_model(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_price(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Check if the "price" field contains a value within the required boundaries"""
     if input_data["price"] >= param_filters.price_from:
         if input_data["price"] <= param_filters.price_to:
             return True
@@ -196,6 +198,7 @@ def is_valid_price(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_year(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Check if the "year" field contains a value within the required boundaries"""
     if input_data["year"] >= param_filters.year_from:
         if input_data["year"] <= param_filters.year_to:
             return True
@@ -205,6 +208,7 @@ def is_valid_year(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_transmission(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether the field 'transmission' equal the required value"""
     if param_filters.transmission is None:
         return True
     if input_data["transmission"] == param_filters.transmission:
@@ -213,6 +217,7 @@ def is_valid_transmission(input_data: dict, param_filters: argparse.Namespace) -
 
 
 def is_valid_engine(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Check if the "engine" field contains a value within the required boundaries"""
     if input_data["engine"] >= param_filters.engine_from:
         if input_data["engine"] <= param_filters.engine_to:
             return True
@@ -222,6 +227,7 @@ def is_valid_engine(input_data: dict, param_filters: argparse.Namespace) -> bool
 
 
 def is_valid_fuel(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether the field 'fuel' equal the required value"""
     if param_filters.fuel is None:
         return True
     if input_data["fuel"] == param_filters.fuel:
@@ -230,12 +236,14 @@ def is_valid_fuel(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_mileage(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether the field 'mileage' equal or less value then the required value"""
     if input_data["mileage"] <= param_filters.mileage:
         return True
     return False
 
 
 def is_valid_body(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether the field 'body' equal the required value"""
     if param_filters.body is None:
         return True
     if input_data["body"] == param_filters.body:
@@ -244,6 +252,7 @@ def is_valid_body(input_data: dict, param_filters: argparse.Namespace) -> bool:
 
 
 def is_valid_exchange(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether the field 'exchange' equal the required value"""
     if param_filters.exchange is None:
         return True
     if input_data["exchange"] == param_filters.exchange:
@@ -252,6 +261,7 @@ def is_valid_exchange(input_data: dict, param_filters: argparse.Namespace) -> bo
 
 
 def is_valid_keywords(input_data: dict, param_filters: argparse.Namespace) -> bool:
+    """Checking whether a string contains keywords from a list"""
     # Input data is a string of comma-separated words
     keywords = param_filters.keywords.split(",")
     for word in keywords:
@@ -269,7 +279,7 @@ def load_data(file_path: Path):
 
 
 def extract_data(input_data) -> None:
-    """Process data from CSV data"""
+    """Extract fields from CSV data"""
     reader = csv.DictReader(input_data, delimiter=",", quotechar='"')
     extracted_data = []
     for row in reader:
@@ -323,6 +333,7 @@ FILTERS_PIPELINE = (
 
 
 def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
+    """Filtering rows by parameters"""
     filtered_data = []
     for row in input_data:
         all_filter_valid = True
@@ -338,11 +349,12 @@ def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
 
 
 def order_data(input_data:list):
+    """Sorting the data into three columns"""
     input_data.sort(key=lambda row: (row["price"], -row["year"], row["mileage"]))
 
 
-def show_data(input_data: list, max_records):
-    """Show date in table format"""
+def load_out_data(input_data: list, max_records):
+    """Print date in table format"""
     print(tabulate(input_data[:max_records], headers="keys"))
     
 def main():
@@ -363,7 +375,7 @@ def main():
     order_data(filtered_data)
     ts_order = datetime.now()
     
-    show_data(filtered_data, args_app.max_records)
+    load_out_data(filtered_data, args_app.max_records)
     ts_show = datetime.now()
 
     print(f"Parse args: {ts_args_app - start_time}")
