@@ -9,6 +9,7 @@ import csv
 import io
 from datetime import datetime
 from pathlib import Path
+from memory_profiler import profile
 
 from tabulate import tabulate
 
@@ -18,7 +19,6 @@ BRANDS_TWO_WORDS = {
     "Dongfeng": "Dongfeng Honda",
     "Great": "Great Wall",
     "Iran": "Iran Khodro",
-    "Renault": "Renault Samsung",
     "Land": "Land Rover",
 }
 
@@ -75,7 +75,9 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--max_records", type=int, default=20, help="Maximal number of records output"
     )
-
+    parser.add_argument(
+        "--file", type=Path, default="data/cars-av-by_card_v2.csv", help="Path to file with data"
+    )
     args = parser.parse_args()
     return args
 
@@ -343,6 +345,9 @@ def filter_data(input_data: list, param_filters: argparse.Namespace) -> list:
             all_filter_valid = False
             break
         if all_filter_valid:
+            # The whole line('card') was needed for the keyword search. 
+            # Next, only the extracted fields will be needed.
+            # Delete unused data
             row.pop("card")
             filtered_data.append(row)
     return filtered_data
@@ -356,7 +361,7 @@ def order_data(input_data:list):
 def load_out_data(input_data: list, max_records):
     """Print date in table format"""
     print(tabulate(input_data[:max_records], headers="keys"))
-    
+
 def main():
     """Main function"""
     start_time = datetime.now()
@@ -364,7 +369,7 @@ def main():
     args_app = get_args()
     ts_args_app = datetime.now()
     
-    input_data = load_data("data/cars-av-by_card_v2.csv")
+    input_data = load_data(args_app.file)
     ts_load = datetime.now()
     
     extracted_data = extract_data(input_data)
@@ -383,7 +388,7 @@ def main():
     print(f"Load: {ts_load - ts_args_app}")
     print(f"Extract: {ts_extract - ts_load}")
     print(f"Filter: {ts_filter - ts_extract}")
-    print(f"Order: {ts_order - ts_extract}")
+    print(f"Order: {ts_order - ts_filter}")
     print(f"Show: {ts_show - ts_order}")
     print(f"Total: {ts_show - start_time}")
     
