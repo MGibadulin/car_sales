@@ -9,7 +9,6 @@ import csv
 import io
 from datetime import datetime
 from pathlib import Path
-from memory_profiler import profile
 
 from tabulate import tabulate
 
@@ -30,7 +29,7 @@ EXCHANGE_MAP = {
 }
 
 
-def get_args() -> argparse.Namespace:
+def get_args() -> dict:
     """Get args"""
 
     parser = argparse.ArgumentParser(
@@ -38,49 +37,47 @@ def get_args() -> argparse.Namespace:
                                  a specific csv file with data from a car listing website"
     )
 
-    parser.add_argument("--brand", type=str, default=None, help="Vehicle manufacturer")
+    parser.add_argument("-brand", type=str, default=None, help="Vehicle manufacturer")
     parser.add_argument(
-        "--year_from", type=int, default=0, help="Build date vehicle from"
+        "-year_from", type=int, default=0, help="Build date vehicle from"
     )
     parser.add_argument(
-        "--year_to", type=int, default=2099, help="Build date vehicle to"
+        "-year_to", type=int, default=2099, help="Build date vehicle to"
     )
-    parser.add_argument("--model", type=str, default=None, help="Model vehicle")
+    parser.add_argument("-model", type=str, default=None, help="Model vehicle")
+    parser.add_argument("-price_from", type=int, default=0, help="Minimal price in USD")
     parser.add_argument(
-        "--price_from", type=int, default=0, help="Minimal price in USD"
+        "-price_to", type=int, default=10**9, help="Maximal price in USD"
     )
+    parser.add_argument("-transmission", type=str, help="Type of transmission")
+    parser.add_argument("-mileage", type=int, default=10**6, help="Maximal mileage")
+    parser.add_argument("-body", type=str, help="Type of body vehicle")
     parser.add_argument(
-        "--price_to", type=int, default=10**9, help="Maximal price in USD"
-    )
-    parser.add_argument("--transmission", type=str, help="Type of transmission")
-    parser.add_argument("--mileage", type=int, default=10**6, help="Maximal mileage")
-    parser.add_argument("--body", type=str, help="Type of body vehicle")
-    parser.add_argument(
-        "--engine_from", type=int, default=0, help="Minimal volume of engine in cm^3"
+        "-engine_from", type=int, default=0, help="Minimal volume of engine in cm^3"
     )
     parser.add_argument(
-        "--engine_to", type=int, default=10000, help="Maximal volume of engine in cm^3"
+        "-engine_to", type=int, default=10000, help="Maximal volume of engine in cm^3"
     )
-    parser.add_argument("--fuel", type=str, help="Type of fuel")
-    parser.add_argument("--exchange", type=str, help="Ready to exchange, yes/no")
+    parser.add_argument("-fuel", type=str, help="Type of fuel")
+    parser.add_argument("-exchange", type=str, help="Ready to exchange, yes/no")
     parser.add_argument(
-        "--keywords",
+        "-keywords",
         type=str,
         default="",
         help="Any text you are looking for in the ad,\
                     independent keywords separated by commas",
     )
     parser.add_argument(
-        "--max_records", type=int, default=20, help="Maximal number of records output"
+        "-max_records", type=int, default=20, help="Maximal number of records output"
     )
     parser.add_argument(
-        "--file",
+        "-file",
         type=Path,
         default="data/cars-av-by_card_v2.csv",
         help="Path to file with data",
     )
     args = parser.parse_args()
-    return args
+    return vars(args)
 
 
 def extract_brand(input_string: str) -> str:
@@ -97,8 +94,7 @@ def extract_model(input_string: str, brand: str) -> str:
     prefix = "Продажа " + brand
     model_from_title = input_string.removeprefix(prefix)
     model_from_title = model_from_title.rsplit(",", maxsplit=1)[0]
-    model_from_title = model_from_title.strip()
-    return model_from_title
+    return model_from_title.strip()
 
 
 def extract_price(input_string: str) -> int:
@@ -130,17 +126,16 @@ def extract_engine(input_string: str) -> str:
             # 1.6 л -> 16 -> 1600
             engine_from_field = 100 * int(engine_from_field)
         except:
-            # если нет поля цифрами (объемом двигателя), то 0
+            # if feild 'engine' is empty, then fill 0
             engine_from_field = 0
     else:
-        # если электромобиль, то объем двигателя 0
+        # electric Vehicle
         engine_from_field = 0
     return engine_from_field
 
 
 def extract_fuel(input_string: str) -> str:
     """Extract field 'fuel' from 'description'."""
-    # получаем поле что бы понять карточка авто с ДВС и электро
     description = input_string.split("|")[0]
     engine_from_field = description.split(",", maxsplit=3)[2].strip()
     if engine_from_field == "электро":
@@ -171,101 +166,101 @@ def extract_exchange(input_string: str) -> str:
     return exchange
 
 
-def is_valid_brand(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_brand(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'brand' equal the required value"""
-    if param_filters.brand is None:
+    if param_filters["brand"] is None:
         return True
-    if input_data["brand"] == param_filters.brand:
+    if input_data["brand"] == param_filters["brand"]:
         return True
     return False
 
 
-def is_valid_model(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_model(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'model' equal the required value"""
-    if param_filters.model is None:
+    if param_filters["model"] is None:
         return True
-    if input_data["model"] == param_filters.model:
+    if input_data["model"] == param_filters["model"]:
         return True
     return False
 
 
-def is_valid_price(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_price(input_data: dict, param_filters: dict) -> bool:
     """Check if the "price" field contains a value within the required boundaries"""
-    if input_data["price"] >= param_filters.price_from:
-        if input_data["price"] <= param_filters.price_to:
+    if input_data["price"] >= param_filters["price_from"]:
+        if input_data["price"] <= param_filters["price_to"]:
             return True
         else:
             return False
     return False
 
 
-def is_valid_year(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_year(input_data: dict, param_filters: dict) -> bool:
     """Check if the "year" field contains a value within the required boundaries"""
-    if input_data["year"] >= param_filters.year_from:
-        if input_data["year"] <= param_filters.year_to:
+    if input_data["year"] >= param_filters["year_from"]:
+        if input_data["year"] <= param_filters["year_to"]:
             return True
         else:
             return False
     return False
 
 
-def is_valid_transmission(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_transmission(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'transmission' equal the required value"""
-    if param_filters.transmission is None:
+    if param_filters["transmission"] is None:
         return True
-    if input_data["transmission"] == param_filters.transmission:
+    if input_data["transmission"] == param_filters["transmission"]:
         return True
     return False
 
 
-def is_valid_engine(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_engine(input_data: dict, param_filters: dict) -> bool:
     """Check if the "engine" field contains a value within the required boundaries"""
-    if input_data["engine"] >= param_filters.engine_from:
-        if input_data["engine"] <= param_filters.engine_to:
+    if input_data["engine"] >= param_filters["engine_from"]:
+        if input_data["engine"] <= param_filters["engine_to"]:
             return True
         else:
             return False
     return False
 
 
-def is_valid_fuel(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_fuel(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'fuel' equal the required value"""
-    if param_filters.fuel is None:
+    if param_filters["fuel"] is None:
         return True
-    if input_data["fuel"] == param_filters.fuel:
+    if input_data["fuel"] == param_filters["fuel"]:
         return True
     return False
 
 
-def is_valid_mileage(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_mileage(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'mileage' equal or less value then the required value"""
-    if input_data["mileage"] <= param_filters.mileage:
+    if input_data["mileage"] <= param_filters["mileage"]:
         return True
     return False
 
 
-def is_valid_body(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_body(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'body' equal the required value"""
-    if param_filters.body is None:
+    if param_filters["body"] is None:
         return True
-    if input_data["body"] == param_filters.body:
+    if input_data["body"] == param_filters["body"]:
         return True
     return False
 
 
-def is_valid_exchange(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_exchange(input_data: dict, param_filters: dict) -> bool:
     """Checking whether the field 'exchange' equal the required value"""
-    if param_filters.exchange is None:
+    if param_filters["exchange"] is None:
         return True
-    if input_data["exchange"] == param_filters.exchange:
+    if input_data["exchange"] == param_filters["exchange"]:
         return True
     return False
 
 
-def is_valid_keywords(input_data: dict, param_filters: argparse.Namespace) -> bool:
+def is_valid_keywords(input_data: dict, param_filters: dict) -> bool:
     """Checking whether a string contains keywords from a list"""
     # Input data is a string of comma-separated words
-    keywords = param_filters.keywords.split(",")
+    keywords = param_filters["keywords"].split(",")
     for word in keywords:
         if word.strip() in input_data["card"]:
             return True
@@ -371,7 +366,7 @@ def main():
     args_app = get_args()
     ts_args_app = datetime.now()
 
-    input_data = load_data(args_app.file)
+    input_data = load_data(args_app["file"])
     ts_load = datetime.now()
 
     extracted_data = extract_data(input_data)
@@ -383,7 +378,7 @@ def main():
     order_data(filtered_data)
     ts_order = datetime.now()
 
-    load_out_data(filtered_data, args_app.max_records)
+    load_out_data(filtered_data, args_app["max_records"])
     ts_show = datetime.now()
 
     print(f"Parse args: {ts_args_app - start_time}")
