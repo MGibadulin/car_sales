@@ -16,7 +16,7 @@ env.bak/
 venv.bak/
 
 # Folder with big files
-/data
+*.csv
 
 # vscode
 .vscode
