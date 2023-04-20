@@ -20,3 +20,6 @@ venv.bak/
 
 # vscode
 .vscode
+
+#logging
+*.log
