@@ -2,7 +2,8 @@
 import argparse
 from pathlib import Path
 import carsetl as etl
-from datetime import datetime
+import logging
+import time
 
 
 def get_args() -> dict:
@@ -58,33 +59,27 @@ def get_args() -> dict:
 
 def main():
     """Main function"""
-    start_time = datetime.now()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        filename="myProgramLog.txt",
+        encoding="utf-8",
+        format=" %(asctime)s - %(levelname)s - %(message)s",
+    )
+
+    start_time = time.perf_counter()
     args_app = get_args()
-    ts_args_app = datetime.now()
+    end_time_args = time.perf_counter()
 
     input_data = etl.load_data(args_app["file"])
-    ts_load = datetime.now()
 
     extracted_data = etl.extract_data(input_data)
-    ts_extract = datetime.now()
 
     filtered_data = etl.filter_data(extracted_data, args_app)
-    ts_filter = datetime.now()
 
     etl.order_data(filtered_data)
-    ts_order = datetime.now()
 
     etl.load_out_data(filtered_data, args_app["max_records"])
-    ts_show = datetime.now()
-
-    print(f"Parse args: {ts_args_app - start_time}")
-    print(f"Load: {ts_load - ts_args_app}")
-    print(f"Extract: {ts_extract - ts_load}")
-    print(f"Filter: {ts_filter - ts_extract}")
-    print(f"Order: {ts_order - ts_filter}")
-    print(f"Show: {ts_show - ts_order}")
-    print(f"Total: {ts_show - start_time}")
 
 
 if __name__ == "__main__":
