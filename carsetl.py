@@ -222,10 +222,56 @@ def load_data(file_path: Path):
     return input_data
 
 
-def extract_data(input_data) -> None:
+def convert_tokenized_data(input_data):
+    """Convert CSV to list of dict"""
+    reader = csv.DictReader(input_data, delimiter=",", quotechar='"')
+    tokenized_data = []
+    for row in reader:
+        tokenized_data.append(
+            {
+                "brand": row["brand"],
+                "model": row["model"],
+                "price": int(row["price"]),
+                "year": int(row["year"]),
+                "transmission": row["transmission"],
+                "engine": int(row["engine"]),
+                "fuel": row["fuel"],
+                "mileage": int(row["mileage"]),
+                "body": row["body"],
+                "exchange": row["exchange"],
+                "card": row["card"],
+            }
+        )
+    return tokenized_data
+
+
+def save_data(file_path: Path, data_to_save: dict):
+    """Save data to CSV file"""
+    with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+        fieldnames = [
+            "brand",
+            "model",
+            "price",
+            "year",
+            "transmission",
+            "engine",
+            "fuel",
+            "mileage",
+            "body",
+            "exchange",
+            "card",
+        ]
+        writer = csv.DictWriter(
+            csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_NONNUMERIC
+        )
+        writer.writeheader()
+        writer.writerows(data_to_save)
+
+
+def tokenize_data(input_data) -> None:
     """Extract fields from CSV data"""
     reader = csv.DictReader(input_data, delimiter=",", quotechar='"')
-    extracted_data = []
+    tokenized_data = []
     for row in reader:
         brand = extract_brand(row["title"])
         model = extract_model(row["title"], brand)
@@ -244,7 +290,7 @@ def extract_data(input_data) -> None:
         # Save serialized card for future search by keywords
         card = ",".join(row.values())
 
-        extracted_data.append(
+        tokenized_data.append(
             {
                 "brand": brand,
                 "model": model,
@@ -259,26 +305,24 @@ def extract_data(input_data) -> None:
                 "card": card,
             }
         )
-    return extracted_data
-
-
-FILTERS_PIPELINE = (
-    is_valid_brand,
-    is_valid_model,
-    is_valid_price,
-    is_valid_year,
-    is_valid_transmission,
-    is_valid_engine,
-    is_valid_fuel,
-    is_valid_mileage,
-    is_valid_body,
-    is_valid_exchange,
-    is_valid_keywords,
-)
+    return tokenized_data
 
 
 def filter_data(input_data: list, param_filters: dict) -> list:
     """Filtering rows by parameters"""
+    FILTERS_PIPELINE = (
+        is_valid_brand,
+        is_valid_model,
+        is_valid_price,
+        is_valid_year,
+        is_valid_transmission,
+        is_valid_engine,
+        is_valid_fuel,
+        is_valid_mileage,
+        is_valid_body,
+        is_valid_exchange,
+        is_valid_keywords,
+    )
     filtered_data = []
     for row in input_data:
         all_filter_valid = True
