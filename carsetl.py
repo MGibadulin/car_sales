@@ -222,7 +222,7 @@ def load_data(file_path: Path):
     return input_data
 
 
-def convert_tokenized_data(input_data):
+def get_tokenized_data(input_data):
     """Convert CSV to list of dict"""
     reader = csv.DictReader(input_data, delimiter=",", quotechar='"')
     tokenized_data = []
