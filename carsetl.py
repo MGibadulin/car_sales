@@ -216,9 +216,18 @@ def is_valid_keywords(input_data: dict, param_filters: dict) -> bool:
 
 def load_data(file_path: Path):
     """Load data from file"""
-    file = open(file_path, encoding="utf-8")
-    input_data = file.read()
-    input_data = io.StringIO(input_data)
+    try:
+        file = open(file_path, "r", encoding="utf-8")
+    except FileNotFoundError:
+        print(f"File {file_path} not found. The program has been stopped")
+        SystemExit()
+    except OSError as err:
+        print(f"OS error occurred while opening the file {file_path}: {err}")
+        SystemExit()
+    else:
+        input_data = file.read()
+        file.close()
+        input_data = io.StringIO(input_data)
     return input_data
 
 
