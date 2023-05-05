@@ -36,9 +36,9 @@ def extract_brand(input_string: str) -> str:
     return brand_from_title.strip()
 
 
-def extract_model(input_string: str, brand: str) -> str:
+def extract_model(input_string: str) -> str:
     """Extract field 'model' from 'title'."""
-    prefix = "Продажа " + brand
+    prefix = "Продажа " + extract_brand(input_string)
     model_from_title = input_string.removeprefix(prefix)
     model_from_title = model_from_title.rsplit(",", maxsplit=1)[0]
     return model_from_title.strip()
