@@ -69,14 +69,19 @@ CREATE TABLE IF NOT EXISTS `paid-project-346208`.`car_ads_ds_staging_test`.`cars
 	PRIMARY KEY(row_id) NOT ENFORCED
 );
 
+TRUNCATE TABLE `paid-project-346208`.`meta_ds`.`audit_log`;
 --audit_log
 CREATE TABLE IF NOT EXISTS `paid-project-346208`.`meta_ds`.`audit_log`
 (
 	id			STRING NOT NULL,
 	process		STRING NOT NULL,
 	start_ts	TIMESTAMP NOT NULL,
-	stop_ts		TIMESTAMP,
-	message		STRING
+	end_ts		TIMESTAMP,
+	truncated 	INT64,
+	inserted	INT64,
+	updated 	INT64,
+	mark_as_deleted INT64,
+	message 	STRING
 );
 
 WITH t1 AS
@@ -98,6 +103,26 @@ SELECT card_id, title, description, scrap_date
 FROM t1
 WHERE t1.cnt = 1;
 
+CREATE OR REPLACE PROCEDURE `paid-project-346208`.`car_ads_ds_staging_test`.usp_audit_start(process STRING, OUT id_row STRING)
+BEGIN
+	SET id_row = GENERATE_UUID();
+	INSERT INTO `paid-project-346208`.`meta_ds`.`audit_log`(id, process, start_ts)
+		VALUES(id_row, process, CURRENT_TIMESTAMP());
+
+END;
+
+CREATE OR REPLACE PROCEDURE `paid-project-346208`.`car_ads_ds_staging_test`.usp_audit_end(IN id_row STRING, 
+	IN metrics STRUCT <truncated INT64, inserted INT64, updated INT64, mark_as_deleted INT64, message STRING>)
+BEGIN
+	UPDATE `paid-project-346208`.`meta_ds`.`audit_log`
+	SET end_ts = CURRENT_TIMESTAMP(),
+		truncated = metrics.truncated,
+		inserted = metrics.inserted,
+		updated = metrics.updated,
+		mark_as_deleted = metrics.mark_as_deleted,
+		message = metrics.message
+	WHERE id = id_row;
+END;
 
 CREATE OR REPLACE PROCEDURE `paid-project-346208`.`car_ads_ds_staging_test`.usp_landing_staging1_av_by_card_tokenized_full_load()
 BEGIN 
@@ -105,17 +130,14 @@ BEGIN
 	DECLARE id_row STRING;
 	DECLARE truncate_row_count INT64;
 	DECLARE insert_row_count INT64;
+	DECLARE metrics STRUCT <truncated INT64, inserted INT64, updated INT64, mark_as_deleted INT64, message STRING>;
 
-	SET id_row = GENERATE_UUID();
-	--create log record
-	INSERT INTO `paid-project-346208`.`meta_ds`.`audit_log`(id, process, start_ts)
-		VALUES(id_row, "usp_landing_staging1_av_by_card_tokenized_full_load", CURRENT_TIMESTAMP());
-
-	--get quantity of rows which will be truncated
-	
-	SET truncate_row_count = (SELECT COUNT(card_id) FROM `paid-project-346208`.`car_ads_ds_staging_test`.`cars_av_by_card_tokenized`);
+	CALL `paid-project-346208`.`car_ads_ds_staging_test`.usp_audit_start("usp_landing_staging1_av_by_card_tokenized_full_load", id_row);
 
 	TRUNCATE TABLE `paid-project-346208`.`car_ads_ds_staging_test`.`cars_av_by_card_tokenized`;
+
+	--get quantity of rows which will be truncated
+	SET truncate_row_count= @@row_count;
 
 	INSERT INTO `paid-project-346208`.`car_ads_ds_staging_test`.`cars_av_by_card_tokenized`
 	WITH t1 AS
@@ -141,7 +163,7 @@ BEGIN
 				description,
 				exchange 
 			ORDER BY scrap_date ASC
-			) AS cnt
+			) AS rn
 		FROM `paid-project-346208`.`car_ads_ds_landing`.`lnd_cars-av-by_card_300`
 	)
 	SELECT
@@ -219,30 +241,24 @@ BEGIN
 			WHEN comment IS NULL THEN ''
 			ELSE comment
 		END AS comment,
-		scrap_date AS scrap_date,
-		scrap_date AS modified_date,
+		scrap_date,
+		CURRENT_TIMESTAMP() AS modified_date,
 		"N" AS deleted
 	FROM t1
-	WHERE t1.cnt = 1; --delete duplicates
+	WHERE t1.rn = 1; --delete duplicates
 	
 	--get quantity of rows which have been inserted
-	SET insert_row_count = (SELECT COUNT(card_id) FROM `paid-project-346208`.`car_ads_ds_staging_test`.`cars_av_by_card_tokenized`);
-	-- update audit record
-	UPDATE `paid-project-346208`.`meta_ds`.`audit_log`
-	SET stop_ts = CURRENT_TIMESTAMP(),
-		message = CONCAT("deleted:0;truncated:", CAST(truncate_row_count AS STRING), ";inserted:", CAST(insert_row_count AS STRING),";updated:0")
-	WHERE id = id_row;
+	SET insert_row_count = @@row_count;
+
+	SET metrics = (truncate_row_count, insert_row_count, NULL, NULL, NULL);
+	CALL `paid-project-346208`.`car_ads_ds_staging_test`.usp_audit_end(id_row, metrics);
 	
 END;
-
 
 
 CALL `paid-project-346208`.`car_ads_ds_staging_test`.usp_landing_staging1_av_by_card_tokenized_full_load();
 
 SELECT SHA256(CONCAT(t1.title, t1.price_secondary, t1.location, t1.labels, t1.comment, t1.description, t1.exchange)) AS row_hash
-FROM `paid-project-346208`.`car_ads_ds_landing`.`lnd_cars-av-by_card_300` AS t1;
-
-SELECT t1.title, t1.price_secondary, t1.location, t1.labels, t1.comment, t1.description, t1.exchange
 FROM `paid-project-346208`.`car_ads_ds_landing`.`lnd_cars-av-by_card_300` AS t1;
 
 UPDATE `paid-project-346208`.`car_ads_ds_landing`.`lnd_cars-av-by_card_300`
@@ -252,46 +268,3 @@ WHERE card_id = 104316191;
 UPDATE `paid-project-346208`.`car_ads_ds_landing`.`lnd_cars-av-by_card_300`
 SET scrap_date = CAST("2023-04-18 21:43:33.000" AS TIMESTAMP)
 WHERE card_id = 104316191;
-
-
-CREATE OR REPLACE PROCEDURE `paid-project-346208`.`car_ads_ds_staging_test`.usp_landing_staging1_av_by_card_tokenized_incremental_load()
-BEGIN
-	DECLARE id_row STRING;
-	DECLARE insert_row_count INT64;
-
-	SET id_row = GENERATE_UUID();
-
-	--create log record
-	INSERT INTO `paid-project-346208`.`meta_ds`.`audit_log`(id, process, start_ts)
-		VALUES(id_row, "usp_landing_staging1_av_by_card_tokenized_full_load", CURRENT_TIMESTAMP());
-	
-	MERGE `paid-project-346208`.`car_ads_ds_staging_test`.`cars_av_by_card_tokenized` AS T
-	USING
-	(
-		SELECT
-			card_id,
-			title,
-			price_secondary,
-			location,
-			labels,
-			comment,
-			description,
-			exchange,
-			scrap_date,
-			ROW_NUMBER() OVER(
-			PARTITION BY 
-				card_id,
-				title,
-				price_secondary,
-				location,
-				labels,
-				comment,
-				description,
-				exchange 
-			ORDER BY scrap_date ASC
-			) AS cnt
-		FROM `paid-project-346208`.`car_ads_ds_landing`.`lnd_cars-av-by_card_300`
-		WHERE cnt = 1
-	) AS S
-	ON 
-END;  
