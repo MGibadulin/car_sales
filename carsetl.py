@@ -7,6 +7,7 @@ It enters the result into the standard output window.
 import csv
 import io
 from pathlib import Path
+import re
 
 from tabulate import tabulate
 
@@ -46,20 +47,20 @@ def extract_model(input_string: str) -> str:
 
 def extract_price(input_string: str) -> int:
     """Extract field 'price' from 'price_secondary'."""
-    price_from_field = "".join(ch for ch in input_string if ch.isdigit())
+    input_string = input_string.replace(' ', '')
+    price_from_field = re.search(r'≈(\d+)\$', input_string).group(1)
     return int(price_from_field)
 
 
 def extract_year(input_string: str) -> int:
     """Extract field 'year' from 'description'."""
-    year_from_field = input_string.split(" ", maxsplit=1)[0]
+    year_from_field = re.search(r'^(\d{4}) г.,', input_string).group(1)
     return int(year_from_field)
 
 
 def extract_transmission(input_string: str) -> str:
     """Extract field 'transmission' from 'description'."""
-    transmission_from_field = input_string.split("|")[0]
-    transmission_from_field = transmission_from_field.split(",", maxsplit=2)[1]
+    transmission_from_field = re.search(r',\s(\S+),.+', input_string).group(1)
     return transmission_from_field.strip()
 
 
